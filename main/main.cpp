@@ -13,6 +13,8 @@
 #include "esp_spi_flash.h"
 #include "main.h"
 
+#include "EPD_2in9b.h"
+
 #include <driver/i2c.h>
 
 //#define I2C_MASTER_SCL         19 /* Use yellow wire. */
@@ -121,22 +123,12 @@ extern "C" int app_main()
     printf("%dMB %s flash\n", spi_flash_get_chip_size() / (1024 * 1024),
             (chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
 
-printf("Checking status...\n");
-i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-
 /*
-i2c_master_start(cmd);
-i2c_master_write_byte(cmd, (0x75 << 1) | I2C_MASTER_WRITE, ACK_CHECK_EN);
-i2c_master_write_byte(cmd, 0x78, ACK_CHECK_EN);
-i2c_master_stop(cmd);
-
-result = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, 10 / portTICK_PERIOD_MS);
-i2c_cmd_link_delete(cmd);
-*/
-
 printf("Scanning I2C Bus...\n");
 i2c_master_init();
 xTaskCreatePinnedToCore(i2c_scan_task, "I2C scan", 2048, NULL, 1, NULL, 1);
+*/
+
 vTaskDelay(10000 / portTICK_PERIOD_MS);
     for (int i = 10; i >= 0; i--) {
         printf("Restarting in %d seconds...\n", i);
