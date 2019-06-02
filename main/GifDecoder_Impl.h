@@ -513,10 +513,11 @@ void GifDecoder<maxGifWidth, maxGifHeight, lzwMaxBits>::decompressAndDisplayFram
         // How the image is decoded depends upon whether it is interlaced or not
     // Decode the interlaced LZW data into the image buffer
     if (tbiInterlaced) {
+        printf("Interlaced!\r\n");
         // Decode every 8th line starting at line 0
         for (int line = tbiImageY + 0; line < tbiHeight + tbiImageY; line += 8) {
-            lzw_decode(rowDecodeBuffer + tbiImageX, tbiWidth, rowDecodeBuffer + maxGifWidth);
-            for (int x = tbiImageX; x < tbiWidth + tbiImageX; x++) {
+            lzw_decode(rowDecodeBuffer, tbiWidth, rowDecodeBuffer + maxGifWidth);
+            for (int x = 0; x < tbiWidth; x++) {
                 // Get the next pixel
                 int pixel = rowDecodeBuffer[x];
 
@@ -527,13 +528,13 @@ void GifDecoder<maxGifWidth, maxGifHeight, lzwMaxBits>::decompressAndDisplayFram
 
                 // Pixel not transparent so get color from palette and draw the pixel
                 if(drawPixelCallback)
-                    (*drawPixelCallback)(x, line, palette[pixel].red, palette[pixel].green, palette[pixel].blue);
+                    (*drawPixelCallback)(x + tbiImageX, line, palette[pixel].red, palette[pixel].green, palette[pixel].blue);
             }
         }
         // Decode every 8th line starting at line 4
         for (int line = tbiImageY + 4; line < tbiHeight + tbiImageY; line += 8) {
-            lzw_decode(rowDecodeBuffer + tbiImageX, tbiWidth, rowDecodeBuffer + maxGifWidth);
-            for (int x = tbiImageX; x < tbiWidth + tbiImageX; x++) {
+            lzw_decode(rowDecodeBuffer, tbiWidth, rowDecodeBuffer + maxGifWidth);
+            for (int x = 0; x < tbiWidth; x++) {
                 // Get the next pixel
                 int pixel = rowDecodeBuffer[x];
 
@@ -544,13 +545,13 @@ void GifDecoder<maxGifWidth, maxGifHeight, lzwMaxBits>::decompressAndDisplayFram
 
                 // Pixel not transparent so get color from palette and draw the pixel
                 if(drawPixelCallback)
-                    (*drawPixelCallback)(x, line, palette[pixel].red, palette[pixel].green, palette[pixel].blue);
+                    (*drawPixelCallback)(x + tbiImageX, line, palette[pixel].red, palette[pixel].green, palette[pixel].blue);
             }
         }
         // Decode every 4th line starting at line 2
         for (int line = tbiImageY + 2; line < tbiHeight + tbiImageY; line += 4) {
-            lzw_decode(rowDecodeBuffer + tbiImageX, tbiWidth, rowDecodeBuffer + maxGifWidth);
-            for (int x = tbiImageX; x < tbiWidth + tbiImageX; x++) {
+            lzw_decode(rowDecodeBuffer, tbiWidth, rowDecodeBuffer + maxGifWidth);
+            for (int x = 0; x < tbiWidth; x++) {
                 // Get the next pixel
                 int pixel = rowDecodeBuffer[x];
 
@@ -561,13 +562,13 @@ void GifDecoder<maxGifWidth, maxGifHeight, lzwMaxBits>::decompressAndDisplayFram
 
                 // Pixel not transparent so get color from palette and draw the pixel
                 if(drawPixelCallback)
-                    (*drawPixelCallback)(x, line, palette[pixel].red, palette[pixel].green, palette[pixel].blue);
+                    (*drawPixelCallback)(x + tbiImageX, line, palette[pixel].red, palette[pixel].green, palette[pixel].blue);
             }
         }
         // Decode every 2nd line starting at line 1
         for (int line = tbiImageY + 1; line < tbiHeight + tbiImageY; line += 2) {
-            lzw_decode(rowDecodeBuffer + tbiImageX, tbiWidth, rowDecodeBuffer + maxGifWidth);
-            for (int x = tbiImageX; x < tbiWidth + tbiImageX; x++) {
+            lzw_decode(rowDecodeBuffer, tbiWidth, rowDecodeBuffer + maxGifWidth);
+            for (int x = 0; x < tbiWidth; x++) {
                 // Get the next pixel
                 int pixel = rowDecodeBuffer[x];
 
@@ -578,15 +579,15 @@ void GifDecoder<maxGifWidth, maxGifHeight, lzwMaxBits>::decompressAndDisplayFram
 
                 // Pixel not transparent so get color from palette and draw the pixel
                 if(drawPixelCallback)
-                    (*drawPixelCallback)(x, line, palette[pixel].red, palette[pixel].green, palette[pixel].blue);
+                    (*drawPixelCallback)(x + tbiImageX, line, palette[pixel].red, palette[pixel].green, palette[pixel].blue);
             }
         }
     }
     else    {
         // Decode the non interlaced LZW data into the image data buffer
         for (int line = tbiImageY; line < tbiHeight + tbiImageY; line++) {
-            lzw_decode(rowDecodeBuffer + tbiImageX, tbiWidth, rowDecodeBuffer + maxGifWidth);
-            for (int x = tbiImageX; x < tbiWidth + tbiImageX; x++) {
+            lzw_decode(rowDecodeBuffer, tbiWidth, rowDecodeBuffer + maxGifWidth);
+            for (int x = 0; x < tbiWidth; x++) {
                 // Get the next pixel
                 int pixel = rowDecodeBuffer[x];
 
@@ -597,7 +598,7 @@ void GifDecoder<maxGifWidth, maxGifHeight, lzwMaxBits>::decompressAndDisplayFram
 
                 // Pixel not transparent so get color from palette and draw the pixel
                 if(drawPixelCallback)
-                    (*drawPixelCallback)(x, line, palette[pixel].red, palette[pixel].green, palette[pixel].blue);
+                    (*drawPixelCallback)(x/* + tbiImageX*/, line, palette[pixel].red, palette[pixel].green, palette[pixel].blue);
             }
         }
     }

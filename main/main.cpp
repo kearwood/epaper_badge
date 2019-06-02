@@ -309,12 +309,14 @@ __uint8_t *redImage = NULL;
 
 extern "C" void gifDrawPixelCallback(int16_t x, int16_t y, uint8_t red, uint8_t green, uint8_t blue) {
 // printf("gifDrawPixelCallback\r\n");
-  if (green != 0) {
+
+  if (green != 0 && red == 0 && blue == 0) {
     // Hack green to be transparent
     return; 
   }
-  size_t offset = (x + y * EPD_WIDTH) / 8;
-  int bit = x % 8;
+  x = EPD_HEIGHT - x;
+  size_t offset = (y + x * EPD_WIDTH) / 8;
+  int bit = 7 - (y % 8);
 
   int color = 1;
   if (red != 0) {
@@ -324,12 +326,12 @@ extern "C" void gifDrawPixelCallback(int16_t x, int16_t y, uint8_t red, uint8_t 
     color = 3;
   }
   if (color & 0x01) {
-    redImage[offset] |= 1 << bit;
+    redImage[offset] |= (1 << bit);
   } else {
     redImage[offset] &= ~(1 << bit);
   }
   if (color & 0x02) {
-    blackImage[offset] |= 1 << bit;
+    blackImage[offset] |= (1 << bit);
   } else {
     blackImage[offset] &= ~(1 << bit);
   }
@@ -338,7 +340,6 @@ extern "C" void gifDrawPixelCallback(int16_t x, int16_t y, uint8_t red, uint8_t 
 
 extern "C" bool gifFileSeekCallback(unsigned long position)
 {
-    printf("gifFileSeekCallback\r\n");
   if (fseek(gifFile, position, SEEK_SET) == 0) {
     gifFilePos = position;
     return true;
@@ -348,23 +349,20 @@ extern "C" bool gifFileSeekCallback(unsigned long position)
 
 extern "C" unsigned long gifFilePositionCallback(void)
 {
-    printf("gifFilePositionCallback\r\n");
     return gifFilePos;
 }
 
 extern "C" int gifFileReadCallback()
 {
-    printf("gifFileReadCallback\r\n");
     gifFilePos++;
   return fgetc(gifFile);
 }
 
 extern "C" int gifFileReadBlockCallback(void *buffer, int numberOfBytes)
 {
-    printf("gifFileReadBlockCallback\r\n");
-  size_t read = fread(buffer, 1, numberOfBytes, gifFile);
+  size_t read = fread(buffer, numberOfBytes, 1, gifFile);
   gifFilePos += numberOfBytes;
-  if (read != numberOfBytes) {
+  if (read != 1) {
     return -1;
   }
   return 0;
@@ -416,7 +414,7 @@ extern "C" void update_display(void *params)
     // ---- Composite GIF ----
     printf("Loading gif..\r\n");
     
-    GifDecoder<EPD_WIDTH, EPD_HEIGHT, 12> decoder;
+    GifDecoder<EPD_HEIGHT, EPD_HEIGHT, 12> decoder;
 
     printf("Loading gif a..\r\n");
 
