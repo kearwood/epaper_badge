@@ -17,7 +17,7 @@
 #include "GUI_BMPfile.h"
 #include "DEV_Config.h"
 #include "ImageData.h"
-#include "gifdec.h"
+#include "GifDecoder.h"
 #include "main.h"
 #include <math.h>
 
@@ -301,6 +301,52 @@ effect_t effects[] = {
   { render_plasma, dither_circles },
 };
 
+FILE* gifFile = 0;
+unsigned long gifFilePos = 0;
+
+extern "C" void gifScreenClearCallback()
+{
+
+}
+
+extern "C" void gifUpdateScreenCallback()
+{
+
+}
+
+extern "C" void gifDrawPixelCallback(int16_t x, int16_t y, uint8_t red, uint8_t green, uint8_t blue) {
+
+}
+
+
+extern "C" bool gifFileSeekCallback(unsigned long position)
+{
+  if (fseek(gifFile, position, SEEK_SET) == 0) {
+    gifFilePos = position;
+    return true;
+  }
+  return false;
+}
+
+extern "C" unsigned long gifFilePositionCallback(void)
+{
+    return gifFilePos;
+}
+
+extern "C" int gifFileReadCallback()
+{
+  return fgetc(gifFile);
+}
+
+extern "C" int gifFileReadBlockCallback(void *buffer, int numberOfBytes)
+{
+  size_t read = fread(buffer, numberOfBytes, numberOfBytes, gifFile);
+  gifFilePos += numberOfBytes;
+  if (read != numberOfBytes) {
+    return -1;
+  }
+  return 0;
+}
 
 extern "C" void update_display(void *params)
 {
@@ -323,6 +369,10 @@ extern "C" void update_display(void *params)
 
     for (int y=0; y<EPD_HEIGHT; y++) {
         for (int x=0; x<EPD_WIDTH; x++) {
+          if (x % 8 == 0) {
+            *blackDest = 0;
+            *redDest = 0;
+          }
           int color=fnRender(x,y) + 1;
 
           if (color & 0x01) {
@@ -334,14 +384,37 @@ extern "C" void update_display(void *params)
           if (x % 8 == 7) {
             blackDest++;
             redDest++;
-            *blackDest = 0;
-            *redDest = 0;
           } else {
             *blackDest <<= 1;
             *redDest <<= 1;
           }
         }
     }
+
+    // ---- Composite GIF ----
+    printf("Loading gif..\r\n");
+    
+    GifDecoder<EPD_WIDTH, EPD_HEIGHT, 12> decoder;
+
+    printf("Loading gif a..\r\n");
+
+    decoder.setScreenClearCallback(gifScreenClearCallback);
+    decoder.setUpdateScreenCallback(gifUpdateScreenCallback);
+    decoder.setDrawPixelCallback(gifDrawPixelCallback);
+
+    decoder.setFileSeekCallback(gifFileSeekCallback);
+    decoder.setFilePositionCallback(gifFilePositionCallback);
+    decoder.setFileReadCallback(gifFileReadCallback);
+    decoder.setFileReadBlockCallback(gifFileReadBlockCallback);
+    printf("Loading gif b..\r\n");
+
+    gifFile = fopen("/spiffs/dino.gif", "rb");
+    printf("Loading gif c..\r\n");
+    gifFilePos = 0;
+    //decoder.startDecoding();
+    //decoder.decodeFrame();
+    fclose(gifFile);
+    printf("Loading gif d..\r\n");
 
     if(EPD_Init() != 0) {
         printf("e-Paper init failed\r\n");

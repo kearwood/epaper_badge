@@ -1,4 +1,4 @@
-set(COMPONENT_SRCS "main.cpp, EPD_2in9b.c, DEV_Config.c, EPD_2in9b.c, font12.c, font20.c, font24.c, font8.c, GUI_BMPfile.c, GUI_Paint.c, ImageData.c, gifdec.c")
+set(COMPONENT_SRCS "main.cpp, EPD_2in9b.c, DEV_Config.c, EPD_2in9b.c, font12.c, font20.c, font24.c, font8.c, GUI_BMPfile.c, GUI_Paint.c, ImageData.c")
 set(COMPONENT_ADD_INCLUDEDIRS "")
 
 register_component()
