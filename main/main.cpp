@@ -326,7 +326,7 @@ extern "C" void gifDrawPixelCallback(int16_t x, int16_t y, uint8_t red, uint8_t 
   if (color & 0x01) {
     redImage[offset] |= 1 << bit;
   } else {
-    redImage[offset] &= ~(1 << bit)
+    redImage[offset] &= ~(1 << bit);
   }
   if (color & 0x02) {
     blackImage[offset] |= 1 << bit;
