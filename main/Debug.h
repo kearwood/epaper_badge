@@ -35,6 +35,10 @@
 #ifndef __DEBUG_H
 #define __DEBUG_H
 
+#ifdef __cplusplus
+  extern "C" {
+#endif
+
 #include <stdio.h>
 
 #if DEBUG

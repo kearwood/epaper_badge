@@ -67,6 +67,8 @@ static void DEV_GPIOConfig(void)
 {
     // --- output pins ---
     gpio_config_t io_conf;
+    memset(&io_conf, 0, sizeof(io_conf));
+
     //disable interrupt
     io_conf.intr_type = GPIO_PIN_INTR_DISABLE;
     //set as output mode
@@ -98,6 +100,34 @@ static void DEV_GPIOConfig(void)
 
 void DEV_SPI_WriteByte(UBYTE value)
 {
+  spi_transaction_t t;
+  
+  memset(&t, 0, sizeof(t));
+  
+  t.length = 8;  //length in bits
+  t.tx_buffer = (const uint8_t *)&value;
+  // gpio_set_level(EPD_DC_PIN, 0);
+  esp_err_t err = spi_device_transmit(spi, &t);
+  // gpio_set_level(EPD_DC_PIN, 1);
+  assert(err==ESP_OK);
+/*
+    char data[1];
+    spi_transaction_t trans_desc;
+    // trans_desc.address = 0;
+    //trans_desc.command = 0;
+    trans_desc.flags = 0;
+    trans_desc.length = 1 * 8;
+    trans_desc.rxlength = 0;
+    trans_desc.tx_buffer = data;
+    trans_desc.rx_buffer = data;
+
+    data[0] = value;
+
+    gpio_set_level(EPD_DC_PIN, 0);
+ESP_ERROR_CHECK(spi_device_transmit(spi, &trans_desc));
+gpio_set_level(EPD_DC_PIN, 1);
+*/
+    /*
     esp_err_t ret;
     spi_transaction_t t;
     memset(&t, 0, sizeof(t));       //Zero out the transaction
@@ -106,6 +136,8 @@ void DEV_SPI_WriteByte(UBYTE value)
     t.user=(void*)0;                //D/C needs to be set to 0
     ret=spi_device_polling_transmit(spi, &t);  //Transmit!
     assert(ret==ESP_OK); //Should have had no issues.
+    */
+
 }
 
 //This function is called (in irq context!) just before a transmission starts. It will
@@ -134,12 +166,13 @@ UBYTE DEV_ModuleInit(void)
         .max_transfer_sz=PARALLEL_LINES*320*2+8
     };
     spi_device_interface_config_t devcfg={
-//        .clock_speed_hz=9000000,
+//        .clock_speed_hz=2000000,
         .clock_speed_hz=32000000,
+        .flags=SPI_DEVICE_HALFDUPLEX, // HACK?
         .mode=0,                                //SPI mode 0
-        .spics_io_num=EPD_CS_PIN,               //CS pin
+        .spics_io_num=-1, // EPD_CS_PIN,               //CS pin
         .queue_size=7,                          //We want to be able to queue 7 transactions at a time
-        .pre_cb=lcd_spi_pre_transfer_callback,  //Specify pre-transfer callback to handle D/C line
+        //.pre_cb=lcd_spi_pre_transfer_callback,  //Specify pre-transfer callback to handle D/C line
     };
     //Initialize the SPI bus
     ret=spi_bus_initialize(HSPI_HOST, &buscfg, 1);

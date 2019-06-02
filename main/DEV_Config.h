@@ -48,6 +48,10 @@
 #ifndef _DEV_CONFIG_H_
 #define _DEV_CONFIG_H_
 
+#ifdef __cplusplus
+  extern "C" {
+#endif
+
 #include <string.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -65,12 +69,6 @@
 /**
  * GPIO config
 **/
-/*
-#define EPD_RST_PIN     17
-#define EPD_DC_PIN      25
-#define EPD_CS_PIN      8
-#define EPD_BUSY_PIN    24
-*/
 
 // Pin definition
 #define EPD_RST_PIN         16
@@ -96,5 +94,8 @@ void DEV_SPI_WriteByte(UBYTE value);
 UBYTE DEV_ModuleInit(void);
 void DEV_ModuleExit(void);
 
+#ifdef __cplusplus
+  }
+#endif
 
 #endif

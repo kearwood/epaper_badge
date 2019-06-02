@@ -33,11 +33,15 @@
 #ifndef _EPD2IN9B_H
 #define _EPD2IN9B_H
 
+#ifdef __cplusplus
+  extern "C" {
+#endif
+
 #include "DEV_Config.h"
 
 // Display resolution
-#define EPD_WIDTH       128
-#define EPD_HEIGHT      296
+#define EPD_WIDTH       176
+#define EPD_HEIGHT      264
 
 // EPD2IN9B commands
 #define PANEL_SETTING                               0x00
@@ -77,5 +81,9 @@ UBYTE EPD_Init();
 void EPD_Clear(void);
 void EPD_Display(const UBYTE *blackimage, const UBYTE *redimage);
 void EPD_Sleep(void);
+
+#ifdef __cplusplus
+  }
+#endif
 
 #endif
