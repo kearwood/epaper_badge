@@ -304,23 +304,41 @@ effect_t effects[] = {
 FILE* gifFile = 0;
 unsigned long gifFilePos = 0;
 
-extern "C" void gifScreenClearCallback()
-{
-
-}
-
-extern "C" void gifUpdateScreenCallback()
-{
-
-}
+__uint8_t *blackImage = NULL;
+__uint8_t *redImage = NULL;
 
 extern "C" void gifDrawPixelCallback(int16_t x, int16_t y, uint8_t red, uint8_t green, uint8_t blue) {
+// printf("gifDrawPixelCallback\r\n");
+  if (green != 0) {
+    // Hack green to be transparent
+    return; 
+  }
+  size_t offset = (x + y * EPD_WIDTH) / 8;
+  int bit = x % 8;
 
+  int color = 1;
+  if (red != 0) {
+    color = 2;
+  }
+  if (blue != 0) {
+    color = 3;
+  }
+  if (color & 0x01) {
+    redImage[offset] |= 1 << bit;
+  } else {
+    redImage[offset] &= ~(1 << bit)
+  }
+  if (color & 0x02) {
+    blackImage[offset] |= 1 << bit;
+  } else {
+    blackImage[offset] &= ~(1 << bit);
+  }
 }
 
 
 extern "C" bool gifFileSeekCallback(unsigned long position)
 {
+    printf("gifFileSeekCallback\r\n");
   if (fseek(gifFile, position, SEEK_SET) == 0) {
     gifFilePos = position;
     return true;
@@ -330,17 +348,21 @@ extern "C" bool gifFileSeekCallback(unsigned long position)
 
 extern "C" unsigned long gifFilePositionCallback(void)
 {
+    printf("gifFilePositionCallback\r\n");
     return gifFilePos;
 }
 
 extern "C" int gifFileReadCallback()
 {
+    printf("gifFileReadCallback\r\n");
+    gifFilePos++;
   return fgetc(gifFile);
 }
 
 extern "C" int gifFileReadBlockCallback(void *buffer, int numberOfBytes)
 {
-  size_t read = fread(buffer, numberOfBytes, numberOfBytes, gifFile);
+    printf("gifFileReadBlockCallback\r\n");
+  size_t read = fread(buffer, 1, numberOfBytes, gifFile);
   gifFilePos += numberOfBytes;
   if (read != numberOfBytes) {
     return -1;
@@ -361,8 +383,8 @@ extern "C" void update_display(void *params)
     fnRender = effect.render;
     fnDither = effect.dither;
 
-    __uint8_t *blackImage = (__uint8_t *)malloc(EPD_WIDTH * EPD_HEIGHT / 8);
-    __uint8_t *redImage = (__uint8_t *)malloc(EPD_WIDTH * EPD_HEIGHT / 8);
+    blackImage = (__uint8_t *)malloc(EPD_WIDTH * EPD_HEIGHT / 8);
+    redImage = (__uint8_t *)malloc(EPD_WIDTH * EPD_HEIGHT / 8);
 
     __uint8_t *blackDest = blackImage;
     __uint8_t *redDest = redImage;
@@ -398,8 +420,6 @@ extern "C" void update_display(void *params)
 
     printf("Loading gif a..\r\n");
 
-    decoder.setScreenClearCallback(gifScreenClearCallback);
-    decoder.setUpdateScreenCallback(gifUpdateScreenCallback);
     decoder.setDrawPixelCallback(gifDrawPixelCallback);
 
     decoder.setFileSeekCallback(gifFileSeekCallback);
@@ -411,8 +431,9 @@ extern "C" void update_display(void *params)
     gifFile = fopen("/spiffs/dino.gif", "rb");
     printf("Loading gif c..\r\n");
     gifFilePos = 0;
-    //decoder.startDecoding();
-    //decoder.decodeFrame();
+    decoder.startDecoding();
+    printf("Loading gif cb..\r\n");
+    decoder.decodeFrame();
     fclose(gifFile);
     printf("Loading gif d..\r\n");
 
@@ -494,7 +515,7 @@ extern "C" int app_main()
 
     if (spiffs_ready) {
         DEV_ModuleInit();
-        xTaskCreatePinnedToCore(update_display, "Update Display", 2048, NULL, 1, NULL, 1);
+        xTaskCreatePinnedToCore(update_display, "Update Display", 32768, NULL, 1, NULL, 1);
     }
     // xTaskCreatePinnedToCore(epd_demo, "EPD Demo", 2048, NULL, 1, NULL, 1);
 

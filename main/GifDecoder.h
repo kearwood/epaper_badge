@@ -52,9 +52,6 @@ private:
     void parseGlobalColorTable(void);
     void parseLogicalScreenDescriptor(void);
     bool parseGifHeader(void);
-    void copyImageDataRect(uint8_t *dst, uint8_t *src, int x, int y, int width, int height);
-    void fillImageData(uint8_t colorIndex);
-    void fillImageDataRect(uint8_t colorIndex, int x, int y, int width, int height);
     int readIntoBuffer(void *buffer, int numberOfBytes);
     int readWord(void);
     void backUpStream(int n);
@@ -87,10 +84,6 @@ private:
     int disposalMethod;
     int lzwCodeSize;
     bool keyFrame;
-    int rectX;
-    int rectY;
-    int rectWidth;
-    int rectHeight;
 
     unsigned long nextFrameTime_ms;
 
@@ -98,6 +91,7 @@ private:
     rgb_24 palette[256];
 
     char tempBuffer[260];
+    uint8_t rowDecodeBuffer[maxGifWidth];
 
     // Buffer image data is decoded into
     // uint8_t imageData[maxGifWidth * maxGifHeight];
