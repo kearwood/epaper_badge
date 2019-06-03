@@ -26,43 +26,12 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#define GIFDEBUG 0
-
-#if defined (ARDUINO)
-#include <Arduino.h>
-#elif defined (SPARK)
-#include "application.h"
-#endif
-
 // This file contains C code, and ESP32 Arduino has changed to use the C++ template version of min()/max() which we can't use with C, so we can't depend on a #define min() from Arduino anymore
 #ifndef min
 #define min(a,b) ((a)<(b)?(a):(b))
 #endif
 
 #include "GifDecoder.h"
-
-#if GIFDEBUG == 1
-#define DEBUG_SCREEN_DESCRIPTOR                             1
-#define DEBUG_GLOBAL_COLOR_TABLE                            1
-#define DEBUG_PROCESSING_PLAIN_TEXT_EXT                     1
-#define DEBUG_PROCESSING_GRAPHIC_CONTROL_EXT                1
-#define DEBUG_PROCESSING_APP_EXT                            1
-#define DEBUG_PROCESSING_COMMENT_EXT                        1
-#define DEBUG_PROCESSING_FILE_TERM                          1
-#define DEBUG_PROCESSING_TABLE_IMAGE_DESC                   1
-#define DEBUG_PROCESSING_TBI_DESC_START                     1
-#define DEBUG_PROCESSING_TBI_DESC_INTERLACED                1
-#define DEBUG_PROCESSING_TBI_DESC_LOCAL_COLOR_TABLE         1
-#define DEBUG_PROCESSING_TBI_DESC_LZWCODESIZE               1
-#define DEBUG_PROCESSING_TBI_DESC_DATABLOCKSIZE             1
-#define DEBUG_PROCESSING_TBI_DESC_LZWIMAGEDATA_OVERFLOW     1
-#define DEBUG_PROCESSING_TBI_DESC_LZWIMAGEDATA_SIZE         1
-#define DEBUG_PARSING_DATA                                  1
-#define DEBUG_DECOMPRESS_AND_DISPLAY                        1
-
-#define DEBUG_WAIT_FOR_KEY_PRESS                            0
-
-#endif
 
 // Error codes
 #define ERROR_NONE                 0
@@ -136,12 +105,6 @@ template <int maxGifWidth, int maxGifHeight, int lzwMaxBits>
 int GifDecoder<maxGifWidth, maxGifHeight, lzwMaxBits>::readByte() {
 
     int b = fileReadCallback();
-    printf("GifDecoder::readByte got %i\r\n", b);
-    if (b == -1) {
-#if GIFDEBUG == 1
-        Serial.println("Read error or EOF occurred");
-#endif
-    }
     return b;
 }
 
@@ -201,12 +164,6 @@ void GifDecoder<maxGifWidth, maxGifHeight, lzwMaxBits>::parseGlobalColorTable() 
 
         // A GCT was present determine how many colors it contains
         colorCount = 1 << ((lsdPackedField & 7) + 1);
-
-#if GIFDEBUG == 1 && DEBUG_GLOBAL_COLOR_TABLE == 1
-        Serial.print("Global color table with ");
-        Serial.print(colorCount);
-        Serial.println(" colors present");
-#endif
         // Read color values into the palette array
         int colorTableBytes = sizeof(rgb_24) * colorCount;
         readIntoBuffer(palette, colorTableBytes);
@@ -216,10 +173,6 @@ void GifDecoder<maxGifWidth, maxGifHeight, lzwMaxBits>::parseGlobalColorTable() 
 // Parse plain text extension and dispose of it
 template <int maxGifWidth, int maxGifHeight, int lzwMaxBits>
 void GifDecoder<maxGifWidth, maxGifHeight, lzwMaxBits>::parsePlainTextExtension() {
-
-#if GIFDEBUG == 1 && DEBUG_PROCESSING_PLAIN_TEXT_EXT == 1
-    Serial.println("\nProcessing Plain Text Extension");
-#endif
     // Read plain text header length
     uint8_t len = readByte();
 
@@ -390,14 +343,12 @@ void GifDecoder<maxGifWidth, maxGifHeight, lzwMaxBits>::parseTableBasedImage() {
 // Parse gif data
 template <int maxGifWidth, int maxGifHeight, int lzwMaxBits>
 int GifDecoder<maxGifWidth, maxGifHeight, lzwMaxBits>::parseData() {
-    printf("parseData\r\n");
     bool parsedFrame = false;
     while (!parsedFrame) {
 
 
         // Determine what kind of data to process
         uint8_t b = readByte();
-        printf("parseData - readByte returns %i\r\n", b);
 
         if (b == 0x2c) {
             // Parse table based image
@@ -434,17 +385,11 @@ int GifDecoder<maxGifWidth, maxGifHeight, lzwMaxBits>::parseData() {
             }
         }
         else    {
-#if GIFDEBUG == 1 && DEBUG_PARSING_DATA == 1
-    Serial.println("\nParsing Done");
-#endif
-
             // Push unprocessed byte back into the stream for later processing
             backUpStream(1);
-            printf("parseData - ERROR_DONE_PARSING\r\n");
             return ERROR_DONE_PARSING;
         }
     }
-    printf("parseData - ERROR_NONE\r\n");
     return ERROR_NONE;
 }
 
@@ -505,15 +450,11 @@ int GifDecoder<maxGifWidth, maxGifHeight, lzwMaxBits>::decodeFrame(void) {
 // Decompress LZW data and display animation frame
 template <int maxGifWidth, int maxGifHeight, int lzwMaxBits>
 void GifDecoder<maxGifWidth, maxGifHeight, lzwMaxBits>::decompressAndDisplayFrame(unsigned long filePositionAfter) {
-
-
-    printf("decompressAndDisplayFrame\r\n");
     // Each pixel of image is 8 bits and is an index into the palette
 
         // How the image is decoded depends upon whether it is interlaced or not
     // Decode the interlaced LZW data into the image buffer
     if (tbiInterlaced) {
-        printf("Interlaced!\r\n");
         // Decode every 8th line starting at line 0
         for (int line = tbiImageY + 0; line < tbiHeight + tbiImageY; line += 8) {
             lzw_decode(rowDecodeBuffer, tbiWidth, rowDecodeBuffer + maxGifWidth);

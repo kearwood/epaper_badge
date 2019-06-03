@@ -27,14 +27,6 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#define LZWDEBUG 0
-
-#if defined (ARDUINO)
-#include <Arduino.h>
-#elif defined (SPARK)
-#include "application.h"
-#endif
-
 #include "GifDecoder.h"
 
 template <int maxGifWidth, int maxGifHeight, int lzwMaxBits>
@@ -96,10 +88,6 @@ template <int maxGifWidth, int maxGifHeight, int lzwMaxBits>
 int GifDecoder<maxGifWidth, maxGifHeight, lzwMaxBits>::lzw_decode(uint8_t *buf, int len, uint8_t *bufend) {
     int l, c, code;
 
-#if LZWDEBUG == 1
-    unsigned char debugMessagePrinted = 0;
-#endif
-
     if (end_code < 0) {
         return 0;
     }
@@ -112,11 +100,6 @@ int GifDecoder<maxGifWidth, maxGifHeight, lzwMaxBits>::lzw_decode(uint8_t *buf, 
                 *buf++ = *(--sp);
             } else {
                 // out of bounds, keep incrementing the pointers, but don't use the data
-#if LZWDEBUG == 1
-                // only print this message once per call to lzw_decode
-                if(buf == bufend)
-                    Serial.println("****** LZW imageData buffer overrun *******");
-#endif
             }
             if ((--l) == 0) {
                 return len;
@@ -136,7 +119,6 @@ int GifDecoder<maxGifWidth, maxGifHeight, lzwMaxBits>::lzw_decode(uint8_t *buf, 
 
         }
         else    {
-
             code = c;
             if ((code == slot) && (fc >= 0)) {
                 *sp++ = fc;
@@ -160,15 +142,7 @@ int GifDecoder<maxGifWidth, maxGifHeight, lzwMaxBits>::lzw_decode(uint8_t *buf, 
                 if (cursize < lzwMaxBits) {
                     top_slot <<= 1;
                     curmask = mask[++cursize];
-                } else {
-#if LZWDEBUG == 1
-                    if(!debugMessagePrinted) {
-                        debugMessagePrinted = 1;
-                        Serial.println("****** cursize >= lzwMaxBits *******");
-                    }
-#endif
                 }
-
             }
         }
     }

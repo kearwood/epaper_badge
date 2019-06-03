@@ -13,217 +13,14 @@
 #include "esp_spi_flash.h"
 #include "esp_spiffs.h"
 #include "esp_log.h"
-#include "GUI_Paint.h"
-#include "GUI_BMPfile.h"
 #include "DEV_Config.h"
-#include "ImageData.h"
 #include "GifDecoder.h"
 #include "main.h"
 #include <math.h>
 
 #include "EPD_2in9b.h"
 
-#include <driver/i2c.h>
-
 static const char *TAG = "epaper_badge";
-
-//#define I2C_MASTER_SCL         19 /* Use yellow wire. */
-//#define I2C_MASTER_SDA         18 /* Use green wire. */
-
-#define I2C_MASTER_SCL         22
-#define I2C_MASTER_SDA         21
-#define I2C_MASTER_NUM         I2C_NUM_1
-#define I2C_MASTER_TX_BUF_LEN  0
-#define I2C_MASTER_RX_BUF_LEN  0
-#define I2C_MASTER_FREQ_HZ     100000
-
-#define ACK_CHECK_ENABLE       0x1 /* Master will require ack from slave */
-#define ACK_CHECK_DISABLE      0x0
-#define ACK_VAL                0x0
-#define NACK_VAL               0x1
-
-void i2c_master_init();
-void i2c_master_scan();
-esp_err_t i2c_master_probe(uint8_t address);
-
-
-void i2c_master_init()
-{
-    i2c_port_t i2c_master_port = I2C_MASTER_NUM;
-//    ESP_LOGD(TAG, "Starting I2C master at port %d.", i2c_master_port);
-
-    i2c_config_t conf;
-    conf.mode = I2C_MODE_MASTER;
-    conf.sda_io_num = (gpio_num_t)I2C_MASTER_SDA;
-    conf.sda_pullup_en = GPIO_PULLUP_DISABLE;
-    conf.scl_io_num = (gpio_num_t)I2C_MASTER_SCL;
-    conf.scl_pullup_en = (gpio_pullup_t)GPIO_PULLUP_DISABLE;
-    conf.master.clk_speed = I2C_MASTER_FREQ_HZ;
-
-    ESP_ERROR_CHECK(i2c_param_config(i2c_master_port, &conf));
-    ESP_ERROR_CHECK(i2c_driver_install(
-        i2c_master_port,
-        conf.mode,
-        I2C_MASTER_RX_BUF_LEN,
-        I2C_MASTER_TX_BUF_LEN,
-        0
-    ));
-}
-
-esp_err_t i2c_master_probe(uint8_t address)
-{
-    esp_err_t result;
-    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-
-    i2c_master_start(cmd);
-    i2c_master_write_byte(cmd, (address << 1) | I2C_MASTER_WRITE, 1 /* expect ack */);
-    i2c_master_stop(cmd);
-
-    result = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, 10 / portTICK_PERIOD_MS);
-    i2c_cmd_link_delete(cmd);
-
-    return result;
-}
-
-void i2c_master_scan()
-{
-    uint8_t address;
-    esp_err_t result;
-    printf("     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\n");
-    printf("00:         ");
-    for (address = 3; address < 0x78; address++) {
-        result = i2c_master_probe(address);
-
-        if (address % 16 == 0) {
-            printf("\n%.2x:", address);
-        }
-        if (result == ESP_OK) {
-            printf(" %.2x", address);
-        } else {
-            printf(" --");
-        }
-    }
-    printf("\n");
-}
-
-extern "C" void i2c_scan_task(void *params)
-{
-    while(1) {
-        i2c_master_scan();
-        vTaskDelay(3000 / portTICK_RATE_MS);
-    }
-
-    vTaskDelete(NULL);
-}
-
-extern "C" void epd_demo(void *params)
-{
-    printf("2.9inch e-Paper b(c) demo\r\n");
-    DEV_ModuleInit();
-
-    if(EPD_Init() != 0) {
-        printf("e-Paper init failed\r\n");
-    }
-    printf("EPD_Clear\r\n");
-    EPD_Clear();
-    printf("DEV_Delay_ms(500)\r\n");
-    DEV_Delay_ms(500);
-
-    //Create a new image cache named IMAGE_BW and fill it with white
-    UBYTE *BlackImage, *RedImage;
-    UWORD Imagesize = ((EPD_WIDTH % 8 == 0)? (EPD_WIDTH / 8 ): (EPD_WIDTH / 8 + 1)) * EPD_HEIGHT;
-    if((BlackImage = (UBYTE *)malloc(Imagesize)) == NULL) {
-        printf("Failed to apply for black memory...\r\n");
-        exit(0);
-    }
-    if((RedImage = (UBYTE *)malloc(Imagesize)) == NULL) {
-        printf("Failed to apply for red memory...\r\n");
-        exit(0);
-    }
-    printf("NewImage:BlackImage and RedImage\r\n");
-    Paint_NewImage(BlackImage, EPD_WIDTH, EPD_HEIGHT, 270, WHITE);
-    Paint_NewImage(RedImage, EPD_WIDTH, EPD_HEIGHT, 270, WHITE);
-
-    //Select Image
-    Paint_SelectImage(BlackImage);
-    Paint_Clear(WHITE);
-    Paint_SelectImage(RedImage);
-    Paint_Clear(WHITE);
-
-#if 0   // show bmp
-    printf("show windows------------------------\r\n");
-    printf("read black bmp\r\n");
-    Paint_SelectImage(BlackImage);
-    Paint_Clear(WHITE);
-    GUI_ReadBmp("./pic/100x100.bmp", 50, 10);
-
-    printf("read red bmp\r\n");
-    Paint_SelectImage(RedImage);
-    Paint_Clear(WHITE);
-    
-    EPD_Display(BlackImage, RedImage);
-    DEV_Delay_ms(2000);
-
-    printf("show bmp------------------------\r\n");
-    printf("read black bmp\r\n");
-    Paint_SelectImage(BlackImage);
-    GUI_ReadBmp("./pic/2in9b-b.bmp", 0, 0);
-    printf("read red bmp\r\n");
-    Paint_SelectImage(RedImage);
-    GUI_ReadBmp("./pic/2in9b-r.bmp", 0, 0);
-
-    EPD_Display(BlackImage, RedImage);
-    DEV_Delay_ms(2000);
-#endif
-
-#if 1   // show image for array    
-    printf("show image for array\r\n");    
-    EPD_Display(gImage_2in9b_b, gImage_2in9b_r);
-    DEV_Delay_ms(2000);
-#endif
-
-#if 1   // Drawing on the image
-    /*Horizontal screen*/
-    //1.Draw black image
-    Paint_SelectImage(BlackImage);
-    Paint_Clear(WHITE);
-    Paint_DrawPoint(10, 80, BLACK, DOT_PIXEL_1X1, DOT_STYLE_DFT);
-    Paint_DrawPoint(10, 90, BLACK, DOT_PIXEL_2X2, DOT_STYLE_DFT);
-    Paint_DrawPoint(10, 100, BLACK, DOT_PIXEL_3X3, DOT_STYLE_DFT);
-    Paint_DrawPoint(10, 110, BLACK, DOT_PIXEL_3X3, DOT_STYLE_DFT);
-    Paint_DrawLine(20, 70, 70, 120, BLACK, LINE_STYLE_SOLID, DOT_PIXEL_1X1);
-    Paint_DrawLine(70, 70, 20, 120, BLACK, LINE_STYLE_SOLID, DOT_PIXEL_1X1);      
-    Paint_DrawRectangle(20, 70, 70, 120, BLACK, DRAW_FILL_EMPTY, DOT_PIXEL_1X1);
-    Paint_DrawRectangle(80, 70, 130, 120, BLACK, DRAW_FILL_FULL, DOT_PIXEL_1X1);
-    Paint_DrawString_EN(10, 0, "waveshare", &Font16, BLACK, WHITE);    
-    // Paint_DrawString_CN(130, 20,"΢ѩ???, &Font24CN, WHITE, BLACK);
-    Paint_DrawNum(10, 50, 987654321, &Font16, WHITE, BLACK);
-    
-    //2.Draw red image
-    Paint_SelectImage(RedImage);
-    Paint_Clear(WHITE);
-    Paint_DrawCircle(160, 95, 20, BLACK, DRAW_FILL_EMPTY, DOT_PIXEL_1X1);
-    Paint_DrawCircle(210, 95, 20, BLACK, DRAW_FILL_FULL, DOT_PIXEL_1X1);
-    Paint_DrawLine(85, 95, 125, 95, BLACK, LINE_STYLE_DOTTED, DOT_PIXEL_1X1);
-    Paint_DrawLine(105, 75, 105, 115, BLACK, LINE_STYLE_DOTTED, DOT_PIXEL_1X1);  
-    // Paint_DrawString_CN(130, 0,"???bc?ݮ?", &Font12CN, BLACK, WHITE);
-    Paint_DrawString_EN(10, 20, "hello world", &Font12, WHITE, BLACK);
-    Paint_DrawNum(10, 33, 123456789, &Font12, BLACK, WHITE);
-    
-    printf("EPD_Display\r\n");
-    EPD_Display(BlackImage, RedImage);
-    DEV_Delay_ms(2000);
-#endif
-
-    printf("Goto Sleep mode...\r\n");
-    EPD_Sleep();
-    free(BlackImage);
-    BlackImage = NULL;
-    free(RedImage);
-    RedImage = NULL;
-
-    vTaskDelete(NULL);
-}
 
 float seed[32];
 
@@ -301,6 +98,17 @@ effect_t effects[] = {
   { render_plasma, dither_circles },
 };
 
+const int kForegroundCount = 7;
+const char* foreground_files[] = {
+  "/spiffs/dino.gif",
+  "/spiffs/youtube.gif",
+  "/spiffs/twitter.gif",
+  "/spiffs/namebottom.gif",
+  "/spiffs/mozillamr.gif",
+  "/spiffs/fxrlogo.gif",
+  "/spiffs/github.gif"
+};
+
 FILE* gifFile = 0;
 unsigned long gifFilePos = 0;
 
@@ -337,7 +145,6 @@ extern "C" void gifDrawPixelCallback(int16_t x, int16_t y, uint8_t red, uint8_t 
   }
 }
 
-
 extern "C" bool gifFileSeekCallback(unsigned long position)
 {
   if (fseek(gifFile, position, SEEK_SET) == 0) {
@@ -368,7 +175,7 @@ extern "C" int gifFileReadBlockCallback(void *buffer, int numberOfBytes)
   return 0;
 }
 
-extern "C" void update_display(void *params)
+extern "C" void update_display()
 {
     // Generate random seeds
     for (int i=0; i<32; i++) {
@@ -380,9 +187,6 @@ extern "C" void update_display(void *params)
 
     fnRender = effect.render;
     fnDither = effect.dither;
-
-    blackImage = (__uint8_t *)malloc(EPD_WIDTH * EPD_HEIGHT / 8);
-    redImage = (__uint8_t *)malloc(EPD_WIDTH * EPD_HEIGHT / 8);
 
     __uint8_t *blackDest = blackImage;
     __uint8_t *redDest = redImage;
@@ -412,42 +216,23 @@ extern "C" void update_display(void *params)
     }
 
     // ---- Composite GIF ----
-    printf("Loading gif..\r\n");
+    const char *szFile = foreground_files[esp_random() % kForegroundCount];
+    printf("Loading %s..\r\n", szFile);
     
     GifDecoder<EPD_HEIGHT, EPD_HEIGHT, 12> decoder;
-
-    printf("Loading gif a..\r\n");
-
     decoder.setDrawPixelCallback(gifDrawPixelCallback);
 
     decoder.setFileSeekCallback(gifFileSeekCallback);
     decoder.setFilePositionCallback(gifFilePositionCallback);
     decoder.setFileReadCallback(gifFileReadCallback);
     decoder.setFileReadBlockCallback(gifFileReadBlockCallback);
-    printf("Loading gif b..\r\n");
 
-    gifFile = fopen("/spiffs/dino.gif", "rb");
-    printf("Loading gif c..\r\n");
+
+    gifFile = fopen(szFile, "rb");
     gifFilePos = 0;
     decoder.startDecoding();
-    printf("Loading gif cb..\r\n");
     decoder.decodeFrame();
     fclose(gifFile);
-    printf("Loading gif d..\r\n");
-
-    if(EPD_Init() != 0) {
-        printf("e-Paper init failed\r\n");
-    }
-    EPD_Clear();
-    EPD_Display(blackImage, redImage);
-    DEV_Delay_ms(500);
-
-    EPD_Sleep();
-    free(blackImage);
-    blackImage = NULL;
-    free(redImage);
-    redImage = NULL;
-    vTaskDelete(NULL);
 }
 
 bool init_spiffs()
@@ -457,7 +242,7 @@ bool init_spiffs()
     esp_vfs_spiffs_conf_t conf = {
           .base_path = "/spiffs",
           .partition_label = NULL,
-          .max_files = 5,
+          .max_files = 10,
           .format_if_mount_failed = false
     };
 
@@ -492,38 +277,39 @@ void destroy_spiffs()
     ESP_LOGI(TAG, "SPIFFS unmounted");
 }
 
+extern "C" void render_task(void *params)
+{
+    blackImage = (__uint8_t *)malloc(EPD_WIDTH * EPD_HEIGHT / 8);
+    redImage = (__uint8_t *)malloc(EPD_WIDTH * EPD_HEIGHT / 8);
+
+    if(EPD_Init() != 0) {
+        printf("e-Paper init failed\r\n");
+    }
+    EPD_Clear();
+
+    for(int i=0; i<10; i++) {
+        update_display();
+        EPD_Display(blackImage, redImage);
+        DEV_Delay_ms(5000);
+    }
+
+    EPD_Sleep();
+    free(blackImage);
+    blackImage = NULL;
+    free(redImage);
+    redImage = NULL;
+    vTaskDelete(NULL);
+}
+
 extern "C" int app_main()
 {
-  bool spiffs_ready = init_spiffs();
-/*
-    printf("Hello world!\n");
-    //Print chip information
-    esp_chip_info_t chip_info;
-    esp_chip_info(&chip_info);
-    printf("This is ESP32 chip with %d CPU cores, WiFi%s%s, ",
-            chip_info.cores,
-            (chip_info.features & CHIP_FEATURE_BT) ? "/BT" : "",
-            (chip_info.features & CHIP_FEATURE_BLE) ? "/BLE" : "");
-
-    printf("silicon revision %d, ", chip_info.revision);
-
-    printf("%dMB %s flash\n", spi_flash_get_chip_size() / (1024 * 1024),
-            (chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
-*/
-
+    DEV_ModuleInit();
+    bool spiffs_ready = init_spiffs();
     if (spiffs_ready) {
-        DEV_ModuleInit();
-        xTaskCreatePinnedToCore(update_display, "Update Display", 32768, NULL, 1, NULL, 1);
+        xTaskCreatePinnedToCore(render_task, "Render", 32768, NULL, 1, NULL, 1);
     }
-    // xTaskCreatePinnedToCore(epd_demo, "EPD Demo", 2048, NULL, 1, NULL, 1);
 
-/*
-printf("Scanning I2C Bus...\n");
-i2c_master_init();
-xTaskCreatePinnedToCore(i2c_scan_task, "I2C scan", 2048, NULL, 1, NULL, 1);
-*/
-
-    vTaskDelay(20000 / portTICK_PERIOD_MS);
+    vTaskDelay(5*60*1000 / portTICK_PERIOD_MS);
     for (int i = 10; i >= 0; i--) {
         printf("Restarting in %d seconds...\n", i);
         vTaskDelay(1000 / portTICK_PERIOD_MS);
