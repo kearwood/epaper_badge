@@ -115,7 +115,6 @@ UBYTE EPD_Init(const unsigned char* lut)
     EPD_SendData(0x28);
     EPD_SendCommand(VCM_DC_SETTING_REGISTER);
     EPD_SendData(0X0A);
-
     return 0;
 }
 
