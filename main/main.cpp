@@ -13,6 +13,8 @@
 #include "esp_system.h"
 #include "esp_pm.h"
 #include "esp_sleep.h"
+#include "driver/rtc_io.h"
+#include "driver/gpio.h"
 #include "esp_spi_flash.h"
 #include "esp_spiffs.h"
 #include "esp_log.h"
@@ -124,14 +126,15 @@ __uint8_t *blackImage = NULL;
 __uint8_t *redImage = NULL;
 
 extern "C" void gifDrawPixelCallback(int16_t x, int16_t y, uint8_t red, uint8_t green, uint8_t blue) {
-// printf("gifDrawPixelCallback\r\n");
-
   if (green != 0 && red == 0 && blue == 0) {
     // Hack green to be transparent
     return; 
   }
-  x = EPD_HEIGHT - x;
+  x = EPD_HEIGHT - x - 1;
   size_t offset = (y + x * EPD_WIDTH) / 8;
+  if (offset >= EPD_WIDTH * EPD_HEIGHT / 8) {
+    return;
+  }
   int bit = 7 - (y % 8);
 
   int color = 1;
@@ -253,7 +256,7 @@ bool init_spiffs()
     esp_vfs_spiffs_conf_t conf = {
           .base_path = "/spiffs",
           .partition_label = NULL,
-          .max_files = 10,
+          .max_files = 128,
           .format_if_mount_failed = false
     };
 
@@ -295,7 +298,6 @@ extern "C" void render_task(void *params)
 
     update_display();
 
-    DEV_ModuleInit();
     if(EPD_Init() != 0) {
         printf("e-Paper init failed\r\n");
     }
@@ -313,54 +315,28 @@ extern "C" void render_task(void *params)
     vTaskDelete(NULL);
 }
 
-extern "C" void keep_alive_task(void *params)
-{
-    // The power management controller on this board will sleep if we don't draw at least 45ma for 150ms once every 32s.
-    // This task periodically pulls us into the highest wake state to prevent the sleep.
+#define BADGE_ADVANCE_BUTTON_PIN 37
 
-    esp_pm_lock_handle_t cpu_freq_lock_handle = NULL;
-    esp_err_t ret = esp_pm_lock_create(ESP_PM_CPU_FREQ_MAX, 0, "Keepalive CPU Freqency Lock", &cpu_freq_lock_handle);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to create keepalive CPU Freqency lock!\r\n");
-        return;
-    }
-    esp_pm_lock_handle_t sleep_lock_handle = NULL;
-    ret = esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "Keepalive Sleep Lock", &sleep_lock_handle);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to create keepalive Sleep lock!\r\n");
-        return;
-    }
-    for( ; ; ) {
-        // Loop forever
-        printf("Keep alive: Burning power...\r\n");
-        ret = esp_pm_lock_acquire(cpu_freq_lock_handle);
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to acquire keepalive CPU Freqency lock!\r\n");
-        }
-        ret = esp_pm_lock_acquire(sleep_lock_handle);
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to acquire keepalive Sleep lock!\r\n");
-        }
-        DEV_Delay_ms(500);
-        ret = esp_pm_lock_release(sleep_lock_handle);
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to release keepalive Sleep lock!\r\n");
-        }
-        ret = esp_pm_lock_release(cpu_freq_lock_handle);
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to release keepalive CPU Freqency lock!\r\n");
-        }
-        printf("Keep alive: Done.\r\n");
-        DEV_Delay_ms(10000);
+volatile bool badge_advance_pressed = false;
+
+static void IRAM_ATTR gpio_isr_handler(void* arg)
+{
+    uint32_t gpio_num = (uint32_t) arg;
+    if ((gpio_num) == BADGE_ADVANCE_BUTTON_PIN) {
+        badge_advance_pressed = true;
     }
 }
-
-
-#define BADGE_ADVANCE_BUTTON_PIN 37
 
 extern "C" int app_main()
 {
     printf("We're awake!\r\n");
+
+    bool badge_advance = false;
+    if(esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0) {
+        badge_advance = true;
+    }
+
+    rtc_gpio_deinit((gpio_num_t)BADGE_ADVANCE_BUTTON_PIN);
 
     render_event_group = xEventGroupCreate();
 
@@ -368,7 +344,7 @@ extern "C" int app_main()
     gpio_config_t io_conf;
     memset(&io_conf, 0, sizeof(io_conf));
     //disable interrupt
-    io_conf.intr_type = (gpio_int_type_t)GPIO_PIN_INTR_DISABLE;
+    io_conf.intr_type = (gpio_int_type_t)GPIO_PIN_INTR_NEGEDGE;
     //set as output mode
     io_conf.mode = GPIO_MODE_INPUT;
     //bit mask of the pins that you want to set,e.g.GPIO18/19
@@ -379,6 +355,13 @@ extern "C" int app_main()
     io_conf.pull_up_en = (gpio_pullup_t)0;
     //configure GPIO with the given settings
     gpio_config(&io_conf);
+
+    DEV_ModuleInit();
+
+    //install gpio isr service
+    gpio_install_isr_service(0);
+    //hook isr handler for specific gpio pin
+    gpio_isr_handler_add((gpio_num_t)BADGE_ADVANCE_BUTTON_PIN, gpio_isr_handler, (void*)BADGE_ADVANCE_BUTTON_PIN);
 
     esp_pm_lock_handle_t cpu_freq_lock_handle = NULL;
     esp_err_t ret = esp_pm_lock_create(ESP_PM_CPU_FREQ_MAX, 0, "Keepalive CPU Freqency Lock", &cpu_freq_lock_handle);
@@ -391,8 +374,10 @@ extern "C" int app_main()
         ESP_LOGE(TAG, "Failed to acquire keepalive CPU Freqency lock!\r\n");
     }
 
+    start:
+
     bool doDisplayUpdate = false;
-    if(gpio_get_level((gpio_num_t)BADGE_ADVANCE_BUTTON_PIN) == 0) {
+    if(badge_advance) {
         printf("Advance button pressed!\r\n");
         // Rotate through the images on demand
         fileIndex = (fileIndex + 1) % kForegroundCount;
@@ -411,8 +396,6 @@ extern "C" int app_main()
         sleep_intervals--;
     }
 
-
-//    xTaskCreatePinnedToCore(keep_alive_task, "Keep Alive", 1024, NULL, 1, NULL, 1);
     if (doDisplayUpdate) {
         printf("Time to update display.\r\n");
         bool spiffs_ready = init_spiffs();
@@ -426,7 +409,7 @@ extern "C" int app_main()
         destroy_spiffs();
     }
 
-    // Ensure we are burning power for at least 500ms to prevent
+    // Ensure we are burning power for at least 250ms to prevent
     // IP5306 from going to sleep
     printf("Keep alive: Burning power...\r\n");
     // Initialize NVS
@@ -472,20 +455,26 @@ extern "C" int app_main()
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "esp_wifi_start failed.\r\n");
     }
-    vTaskDelay(500 / portTICK_PERIOD_MS);
+    vTaskDelay(250 / portTICK_PERIOD_MS);
     ret = esp_wifi_stop();
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "esp_wifi_stop failed.\r\n");
     }
+
+    ESP_ERROR_CHECK(esp_event_loop_delete_default());
     printf("Keep alive: Done.\r\n");
+
+    if (badge_advance_pressed) {
+        printf("Advance button pressed during render, going again...\r\n");
+        badge_advance = true;
+        badge_advance_pressed = false;
+        goto start;
+    }
 
     ret = esp_pm_lock_release(cpu_freq_lock_handle);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to release keepalive CPU Freqency lock!\r\n");
     }
-
-    printf("Going to sleep for 10 seconds...\r\n");
-    fflush(stdout);
 
 
     ret = esp_pm_lock_delete(cpu_freq_lock_handle);
@@ -493,11 +482,14 @@ extern "C" int app_main()
         ESP_LOGE(TAG, "Failed to delete keepalive CPU Freqency lock!\r\n");
     }
 
+    printf("Going to sleep for 15 seconds...\r\n");
+    fflush(stdout);
+
     ret = esp_sleep_enable_ext0_wakeup((gpio_num_t)BADGE_ADVANCE_BUTTON_PIN, 0);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "esp_sleep_enable_ext0_wakeup failed!\r\n");
     }
-    esp_sleep_enable_timer_wakeup(10 * 1000 * 1000);
+    esp_sleep_enable_timer_wakeup(15 * 1000 * 1000);
     esp_deep_sleep_start();
 
     return 0;

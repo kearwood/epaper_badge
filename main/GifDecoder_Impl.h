@@ -539,7 +539,7 @@ void GifDecoder<maxGifWidth, maxGifHeight, lzwMaxBits>::decompressAndDisplayFram
 
                 // Pixel not transparent so get color from palette and draw the pixel
                 if(drawPixelCallback)
-                    (*drawPixelCallback)(x/* + tbiImageX*/, line, palette[pixel].red, palette[pixel].green, palette[pixel].blue);
+                    (*drawPixelCallback)(x + tbiImageX, line, palette[pixel].red, palette[pixel].green, palette[pixel].blue);
             }
         }
     }
