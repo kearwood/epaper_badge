@@ -191,6 +191,7 @@ const int RENDER_EVENT_UPDATE_COMPLETE = BIT0;
 
 extern "C" void update_display()
 {
+    printf("Rendering Background...\r\n");
     // Generate random seeds
     for (int i=0; i<32; i++) {
         seed[i] = (float)(esp_random() % 65536) / 65536.0f;
@@ -298,9 +299,11 @@ extern "C" void render_task(void *params)
 
     update_display();
 
+    printf("Refreshing epaper...\r\n");
     if(EPD_Init() != 0) {
         printf("e-Paper init failed\r\n");
     }
+
     EPD_Clear();
     EPD_Display(blackImage, redImage);
     EPD_Sleep();
@@ -409,7 +412,7 @@ extern "C" int app_main()
         destroy_spiffs();
     }
 
-    // Ensure we are burning power for at least 250ms to prevent
+    // Ensure we are burning power for at least 500ms to prevent
     // IP5306 from going to sleep
     printf("Keep alive: Burning power...\r\n");
     // Initialize NVS
@@ -455,7 +458,7 @@ extern "C" int app_main()
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "esp_wifi_start failed.\r\n");
     }
-    vTaskDelay(250 / portTICK_PERIOD_MS);
+    vTaskDelay(500 / portTICK_PERIOD_MS);
     ret = esp_wifi_stop();
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "esp_wifi_stop failed.\r\n");
@@ -482,14 +485,14 @@ extern "C" int app_main()
         ESP_LOGE(TAG, "Failed to delete keepalive CPU Freqency lock!\r\n");
     }
 
-    printf("Going to sleep for 15 seconds...\r\n");
+    printf("Going to sleep for 10 seconds...\r\n");
     fflush(stdout);
 
     ret = esp_sleep_enable_ext0_wakeup((gpio_num_t)BADGE_ADVANCE_BUTTON_PIN, 0);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "esp_sleep_enable_ext0_wakeup failed!\r\n");
     }
-    esp_sleep_enable_timer_wakeup(15 * 1000 * 1000);
+    esp_sleep_enable_timer_wakeup(10 * 1000 * 1000);
     esp_deep_sleep_start();
 
     return 0;

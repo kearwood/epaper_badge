@@ -166,7 +166,7 @@ UBYTE DEV_ModuleInit(void)
         .max_transfer_sz=PARALLEL_LINES*320*2+8
     };
     spi_device_interface_config_t devcfg={
-//        .clock_speed_hz=2000000,
+//      .clock_speed_hz=2000000,
         .clock_speed_hz=32000000,
         .flags=SPI_DEVICE_HALFDUPLEX, // HACK?
         .mode=0,                                //SPI mode 0
