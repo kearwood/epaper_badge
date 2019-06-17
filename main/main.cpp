@@ -31,6 +31,7 @@ static const char *TAG = "epaper_badge";
 
 RTC_DATA_ATTR uint8_t sleep_intervals;
 RTC_DATA_ATTR uint8_t fileIndex;
+RTC_DATA_ATTR uint8_t fileIndexForeground;
 
 float seed[32];
 
@@ -108,15 +109,36 @@ effect_t effects[] = {
   { render_plasma, dither_circles },
 };
 
-const int kForegroundCount = 7;
+const int kForegroundCount = 6;
 const char* foreground_files[] = {
   "/spiffs/dino.gif",
   "/spiffs/youtube.gif",
   "/spiffs/twitter.gif",
-  "/spiffs/namebottom.gif",
-  "/spiffs/mozillamr.gif",
-  "/spiffs/fxrlogo.gif",
-  "/spiffs/github.gif"
+  "/spiffs/flikr.gif",
+  "/spiffs/github.gif",
+  "/spiffs/transparent.gif",
+};
+
+const int kBackgroundCount = 18;
+const char* background_files[] = {
+  "/spiffs/monochrome-1.gif",
+  "/spiffs/monochrome-2.gif",
+  "/spiffs/monochrome-3.gif",
+  "/spiffs/monochrome-4.gif",
+  "/spiffs/monochrome-5.gif",
+  "/spiffs/monochrome-6.gif",
+  "/spiffs/monochrome-7.gif",
+  "/spiffs/monochrome-8.gif",
+  "/spiffs/monochrome-9.gif",
+  "/spiffs/monochrome-10.gif",
+  "/spiffs/monochrome-11.gif",
+  "/spiffs/monochrome-12.gif",
+  "/spiffs/monochrome-13.gif",
+  "/spiffs/monochrome-14.gif",
+  "/spiffs/monochrome-15.gif",
+  "/spiffs/monochrome-16.gif",
+  "/spiffs/monochrome-17.gif",
+  "/spiffs/monochrome-18.gif",
 };
 
 FILE* gifFile = 0;
@@ -191,11 +213,13 @@ const int RENDER_EVENT_UPDATE_COMPLETE = BIT0;
 
 extern "C" void update_display()
 {
-    printf("Rendering Background...\r\n");
+
     // Generate random seeds
     for (int i=0; i<32; i++) {
         seed[i] = (float)(esp_random() % 65536) / 65536.0f;
     }
+/*
+    printf("Rendering Background...\r\n");
 
     // Select a random effect
     effect_t effect = effects[esp_random() % kEffectCount];
@@ -230,9 +254,9 @@ extern "C" void update_display()
         }
     }
 
-    // ---- Composite GIF ----
-    const char *szFile = foreground_files[fileIndex];
-    printf("Loading %s..\r\n", szFile);
+*/
+    // ---- Background GIF ----
+
     
     GifDecoder<EPD_HEIGHT, EPD_HEIGHT, 12> decoder;
     decoder.setDrawPixelCallback(gifDrawPixelCallback);
@@ -243,11 +267,28 @@ extern "C" void update_display()
     decoder.setFileReadBlockCallback(gifFileReadBlockCallback);
 
 
+    const char *szFile = background_files[fileIndex];
+    printf("Loading %s..\r\n", szFile);
     gifFile = fopen(szFile, "rb");
     gifFilePos = 0;
     decoder.startDecoding();
     decoder.decodeFrame();
     fclose(gifFile);
+
+    if(seed[0] > 0.75f) {
+        int newFileIndex = esp_random() % (kForegroundCount - 1);
+        if (newFileIndex >= fileIndexForeground) {
+            newFileIndex++;
+        }
+        fileIndexForeground = newFileIndex;
+        szFile = foreground_files[fileIndexForeground];
+        printf("Loading %s..\r\n", szFile);
+        gifFile = fopen(szFile, "rb");
+        gifFilePos = 0;
+        decoder.startDecoding();
+        decoder.decodeFrame();
+        fclose(gifFile);
+    }
 }
 
 bool init_spiffs()
@@ -383,12 +424,12 @@ extern "C" int app_main()
     if(badge_advance) {
         printf("Advance button pressed!\r\n");
         // Rotate through the images on demand
-        fileIndex = (fileIndex + 1) % kForegroundCount;
+        fileIndex = (fileIndex + 1) % kBackgroundCount;
         doDisplayUpdate = true;
     } else if (sleep_intervals == 0) {
         printf("Automatic display update now choose random image...\r\n");
         // Select a random gif, other than the one last displayed
-        int newFileIndex = esp_random() % (kForegroundCount - 1);
+        int newFileIndex = esp_random() % (kBackgroundCount - 1);
         if (newFileIndex >= fileIndex) {
             newFileIndex++;
         }
